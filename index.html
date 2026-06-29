@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Josh & Grace · Photo Album</title>
+
+<!--
+  ============================================================
+  SHARED WEDDING PHOTO ALBUM  ·  one-time setup
+  ============================================================
+  1. In Supabase: Storage -> New bucket -> name it exactly:  wedding-album
+     Turn ON "Public bucket", then Save.
+  2. In Supabase: SQL Editor -> run the script at the very
+     bottom of this file (creates the photo list + permissions).
+  3. Your project URL and publishable key are already filled in
+     the CONFIG block below. Edit COUPLE_NAME if you like.
+  Then host this file (e.g. drag onto app.netlify.com/drop, or
+  add to your GitHub Pages repo) and share the link.
+  ============================================================
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Cormorant+Garamond:wght@300;400;500&family=Hanken+Grotesk:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --cream:#EFE9DF;
+    --paper:#F6F2EA;
+    --ink:#36322C;
+    --mute:#7A7266;
+    --line:#DAD2C4;
+    --shadow:0 14px 34px -18px rgba(54,50,44,.45);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--cream);
+    color:var(--ink);
+    font-family:"Cormorant Garamond", Georgia, serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+
+  /* ---------- header ---------- */
+  header{ text-align:center; padding:clamp(34px,6vw,64px) 20px 10px; }
+  .script{
+    font-family:"Great Vibes", cursive;
+    font-size:clamp(52px,11vw,92px);
+    line-height:1; margin:0; font-weight:400;
+  }
+  .eyebrow{
+    font-size:13px; letter-spacing:5px; text-transform:uppercase;
+    color:var(--mute); margin:18px 0 0; font-family:"Hanken Grotesk",sans-serif;
+  }
+  .lede{ font-size:clamp(18px,2.4vw,21px); color:var(--mute); margin:12px auto 0; max-width:540px; }
+  .rule{ width:64px; height:1px; background:var(--line); margin:26px auto 0; }
+
+  /* ---------- uploader ---------- */
+  .wrap{ max-width:1120px; margin:0 auto; padding:0 18px 80px; }
+  .uploader{
+    background:var(--paper); border:1px solid var(--line); border-radius:16px;
+    box-shadow:var(--shadow); padding:clamp(22px,4vw,34px);
+    max-width:620px; margin:30px auto 0;
+  }
+  .drop{
+    border:1.5px dashed var(--line); border-radius:12px; padding:30px 18px; text-align:center;
+    cursor:pointer; transition:border-color .18s, background .18s;
+  }
+  .drop:hover, .drop.over{ border-color:var(--mute); background:#FBF8F2; }
+  .drop .big{ font-family:"Great Vibes",cursive; font-size:34px; line-height:1; }
+  .drop .sub{ color:var(--mute); font-size:16px; margin-top:8px; font-family:"Hanken Grotesk",sans-serif; }
+  input[type=file]{ display:none; }
+
+  .meta{ display:grid; grid-template-columns:1fr; gap:12px; margin-top:18px; }
+  input[type=text]{
+    width:100%; font-family:"Cormorant Garamond",serif; font-size:19px; color:var(--ink);
+    background:#FFFDF8; border:1px solid var(--line); border-radius:10px; padding:11px 14px;
+  }
+  input[type=text]:focus{ outline:none; border-color:var(--mute); }
+  input::placeholder{ color:#B3AB9C; }
+
+  .queue{ display:flex; flex-wrap:wrap; gap:10px; margin-top:16px; }
+  .thumb{ position:relative; width:74px; height:74px; border-radius:9px; overflow:hidden; border:1px solid var(--line); }
+  .thumb img{ width:100%; height:100%; object-fit:cover; }
+  .thumb .x{ position:absolute; top:2px; right:2px; width:20px; height:20px; border:none; border-radius:50%;
+    background:rgba(54,50,44,.7); color:#fff; cursor:pointer; font-size:13px; line-height:20px; padding:0; }
+
+  .send{
+    margin-top:20px; width:100%; border:none; cursor:pointer;
+    background:var(--ink); color:var(--cream); font-family:"Hanken Grotesk",sans-serif;
+    font-size:15px; letter-spacing:1px; padding:15px; border-radius:11px;
+    transition:opacity .18s, transform .12s;
+  }
+  .send:hover{ transform:translateY(-1px); }
+  .send:disabled{ opacity:.5; cursor:default; transform:none; }
+  .status{ text-align:center; color:var(--mute); font-size:15px; margin-top:12px; min-height:20px;
+    font-family:"Hanken Grotesk",sans-serif; }
+
+  .banner{ max-width:620px; margin:24px auto 0; background:#F3ECD9; border:1px solid var(--line);
+    border-radius:10px; padding:11px 16px; text-align:center; color:var(--mute); font-size:15px;
+    font-family:"Hanken Grotesk",sans-serif; }
+  .banner b{ color:var(--ink); }
+
+  /* ---------- gallery ---------- */
+  .gallery-head{ text-align:center; margin:64px 0 22px; }
+  .gallery-head h2{ font-family:"Great Vibes",cursive; font-weight:400; font-size:clamp(34px,5vw,48px); margin:0; }
+  .gallery-head .count{ color:var(--mute); font-size:15px; letter-spacing:1px; margin-top:6px;
+    font-family:"Hanken Grotesk",sans-serif; }
+
+  .grid{ columns:4 240px; column-gap:14px; }
+  .tile{ break-inside:avoid; margin-bottom:14px; border-radius:12px; overflow:hidden;
+    background:var(--paper); box-shadow:var(--shadow); cursor:zoom-in; position:relative; }
+  .tile img{ width:100%; display:block; }
+  .tile .cap{ padding:10px 12px; }
+  .tile .cap .who{ font-size:17px; }
+  .tile .cap .note{ color:var(--mute); font-size:15px; }
+  .empty{ text-align:center; color:var(--mute); padding:50px 0; font-size:18px; }
+
+  /* ---------- lightbox ---------- */
+  .lb{ position:fixed; inset:0; background:rgba(30,27,23,.92); display:none; align-items:center;
+    justify-content:center; z-index:50; padding:24px; cursor:zoom-out; }
+  .lb.open{ display:flex; }
+  .lb img{ max-width:94vw; max-height:88vh; border-radius:8px; box-shadow:0 20px 60px rgba(0,0,0,.5); }
+  .lb .cap{ position:absolute; bottom:22px; left:0; right:0; text-align:center; color:#EFE9DF; font-size:18px; }
+
+  @media (max-width:560px){ .grid{ columns:2 150px; } }
+  .tile{ position:relative; }
+  .tile-actions{ position:absolute; top:8px; right:8px; display:flex; gap:6px; opacity:0; transition:opacity .15s; }
+  .tile:hover .tile-actions{ opacity:1; }
+  @media (hover:none){ .tile-actions{ opacity:.92; } }
+  .iconbtn{ width:34px; height:34px; border:none; border-radius:50%; background:rgba(54,50,44,.78); color:#fff; cursor:pointer; font-size:16px; line-height:1; padding:0; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,.3); }
+  .iconbtn:hover{ background:rgba(54,50,44,.96); }
+  .iconbtn.del{ background:rgba(168,45,30,.88); }
+  .iconbtn.del:hover{ background:rgba(168,45,30,1); }
+  #dlall-wrap{ margin-top:12px; }
+  .dl-all{ display:inline-flex; align-items:center; gap:8px; background:var(--ink); color:var(--cream); border:none; border-radius:24px; padding:9px 20px; font-family:"Hanken Grotesk",sans-serif; font-size:14px; letter-spacing:1px; cursor:pointer; }
+  .dl-all:hover{ opacity:.92; } .dl-all:disabled{ opacity:.6; cursor:default; }
+  .hostnote{ margin-top:8px; font-family:"Hanken Grotesk",sans-serif; font-size:12px; letter-spacing:2px; text-transform:uppercase; color:#9a6b4a; }
+  .savetip{ text-align:center; color:var(--mute); font-size:14px; margin-top:8px; font-family:"Hanken Grotesk",sans-serif; }
+  .lb-bar{ position:absolute; top:18px; right:18px; display:flex; gap:10px; z-index:3; }
+  .lb-bar .iconbtn{ width:42px; height:42px; font-size:19px; }
+</style>
+</head>
+<body>
+
+  <header>
+    <h1 class="script" id="couple">Josh &amp; Grace</h1>
+    <p class="eyebrow">The Wedding Album</p>
+    <p class="lede">Share your photos from our celebration — every picture you add appears below for everyone to enjoy.</p>
+    <div class="rule"></div>
+  </header>
+
+  <div class="wrap">
+    <div class="banner" id="banner" style="display:none;"></div>
+
+    <section class="uploader">
+      <label class="drop" id="drop">
+        <input type="file" id="file" accept="image/*" multiple />
+        <div class="big">Add your photos</div>
+        <div class="sub">Tap to choose, or drag pictures here</div>
+      </label>
+
+      <div class="queue" id="queue"></div>
+
+      <div class="meta">
+        <input type="text" id="name" placeholder="Your name (optional)" />
+        <input type="text" id="caption" placeholder="Add a caption (optional)" />
+      </div>
+
+      <button class="send" id="send" disabled>Add to the album</button>
+      <div class="status" id="status"></div>
+    </section>
+
+    <div class="gallery-head">
+      <h2>The Album</h2>
+      <div class="count" id="count">Loading…</div>
+      <div id="dlall-wrap" style="display:none;"><button class="dl-all" id="dlall">↓  Download all</button></div>
+      <div id="hostnote" class="hostnote" style="display:none;">Host mode · delete enabled</div>
+      <div class="savetip">On a phone? Tap a photo, then press &amp; hold it to save to your camera roll.</div>
+    </div>
+    <div class="grid" id="grid"></div>
+    <div class="empty" id="empty" style="display:none;">No photos yet — be the first to add one.</div>
+  </div>
+
+  <div class="lb" id="lb"><div class="lb-bar" id="lbbar"></div><img id="lbimg" alt="" /><div class="cap" id="lbcap"></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script>
+/* ===================== CONFIG ===================== */
+const SUPABASE_URL = "https://xqrtufabfsnvfbqfjmeu.supabase.co";
+const SUPABASE_KEY = "sb_publishable_RaPxQmA-wDhqJJCqTtM5_w_W9c7LbRc";
+const BUCKET       = "wedding-album";
+const COUPLE_NAME  = "Josh & Grace";
+const HOST_CODE    = "wedding2027";   // visit ...?host=wedding2027 to unlock delete buttons
+/* ================================================== */
+
+document.getElementById("couple").textContent = COUPLE_NAME;
+document.title = COUPLE_NAME + " · Photo Album";
+
+const LIVE = (typeof supabase !== "undefined") && SUPABASE_URL && !SUPABASE_URL.includes("YOUR_");
+const sb = LIVE ? supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+const HOST = new URLSearchParams(location.search).get("host") === HOST_CODE;
+let PHOTOS = [];
+let demo = []; // preview-mode store
+
+if (!LIVE) {
+  const b = document.getElementById("banner");
+  b.style.display = "block";
+  b.innerHTML = "<b>Preview mode.</b> Photos shown here are local only — host this file with your Supabase keys to go live.";
+}
+
+// ---------- file queue ----------
+let queued = [];
+const fileInput = document.getElementById("file");
+const drop = document.getElementById("drop");
+const queueEl = document.getElementById("queue");
+const sendBtn = document.getElementById("send");
+const statusEl = document.getElementById("status");
+
+fileInput.addEventListener("change", e => addFiles(e.target.files));
+["dragover","dragenter"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave","drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => addFiles(e.dataTransfer.files));
+
+function addFiles(list){
+  for (const f of list){ if (f.type.startsWith("image/")) queued.push(f); }
+  renderQueue();
+}
+function renderQueue(){
+  queueEl.innerHTML = "";
+  queued.forEach((f, i) => {
+    const d = document.createElement("div"); d.className = "thumb";
+    const img = document.createElement("img"); img.src = URL.createObjectURL(f); d.appendChild(img);
+    const x = document.createElement("button"); x.className = "x"; x.textContent = "×";
+    x.onclick = () => { queued.splice(i,1); renderQueue(); };
+    d.appendChild(x); queueEl.appendChild(d);
+  });
+  sendBtn.disabled = queued.length === 0;
+  sendBtn.textContent = queued.length > 1 ? `Add ${queued.length} photos to the album` : "Add to the album";
+}
+
+// ---------- downscale before upload ----------
+function processImage(file, maxDim=1800, quality=0.85){
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      if (Math.max(width, height) > maxDim){
+        const s = maxDim / Math.max(width, height); width = Math.round(width*s); height = Math.round(height*s);
+      }
+      const c = document.createElement("canvas"); c.width = width; c.height = height;
+      c.getContext("2d").drawImage(img, 0, 0, width, height);
+      c.toBlob(b => b ? resolve(b) : reject(new Error("encode failed")), "image/jpeg", quality);
+    };
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+// ---------- upload ----------
+sendBtn.addEventListener("click", upload);
+let _heicLoaded=false;
+function ensureHeic(){
+  if(_heicLoaded && window.heic2any) return Promise.resolve();
+  return new Promise((resolve,reject)=>{
+    if(window.heic2any){ _heicLoaded=true; return resolve(); }
+    const sc=document.createElement("script");
+    sc.src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js";
+    sc.onload=()=>{ _heicLoaded=true; resolve(); };
+    sc.onerror=()=>reject(new Error("HEIC converter failed to load"));
+    document.head.appendChild(sc);
+  });
+}
+async function upload(){
+  if (!queued.length) return;
+  const name = document.getElementById("name").value.trim() || null;
+  const caption = document.getElementById("caption").value.trim() || null;
+  sendBtn.disabled = true;
+  const total = queued.length;
+
+  try {
+    for (let i = 0; i < total; i++){
+      statusEl.textContent = `Uploading ${i+1} of ${total}…`;
+      let blob = queued[i], fname = queued[i].name||"", ctype = queued[i].type||"application/octet-stream", ext = "";
+      const isHeic = /heic|heif/i.test(ctype) || /\.(heic|heif)$/i.test(fname);
+      if (isHeic){
+        statusEl.textContent = `Converting ${i+1} of ${total}…`;
+        try { await ensureHeic(); const out = await heic2any({ blob:queued[i], toType:"image/jpeg", quality:0.92 }); blob = Array.isArray(out)?out[0]:out; ctype = "image/jpeg"; ext = "jpg"; }
+        catch(err){ console.warn("HEIC convert failed, uploading original", err); blob = queued[i]; }
+        statusEl.textContent = `Uploading ${i+1} of ${total}…`;
+      }
+      if (LIVE){
+        if (!ext) ext = (fname && fname.lastIndexOf(".")>-1) ? fname.slice(fname.lastIndexOf(".")+1).toLowerCase().replace(/[^a-z0-9]/g,"") : ((ctype.split("/")[1])||"jpg");
+        if (!ext) ext = "jpg";
+        const path = `${Date.now()}-${Math.random().toString(36).slice(2,8)}.${ext}`;
+        const up = await sb.storage.from(BUCKET).upload(path, blob, { contentType:ctype||"application/octet-stream" });
+        if (up.error) throw up.error;
+        const { data:{ publicUrl } } = sb.storage.from(BUCKET).getPublicUrl(path);
+        const ins = await sb.from("album_photos").insert({ url:publicUrl, path, uploader:name, caption });
+        if (ins.error) throw ins.error;
+      } else {
+        demo.unshift({ url:URL.createObjectURL(blob), uploader:name, caption, created_at:new Date().toISOString() });
+      }
+    }
+    statusEl.textContent = total > 1 ? "Thank you! Your photos are in the album." : "Thank you! Your photo is in the album.";
+    queued = []; renderQueue();
+    document.getElementById("name").value = ""; document.getElementById("caption").value = "";
+    loadGallery();
+  } catch (e){
+    console.error(e);
+    const msg = (e && (e.message || e.error || e.error_description)) || "unknown error";
+    statusEl.textContent = "Upload failed: " + msg;
+    sendBtn.disabled = false;
+  }
+}
+
+// ---------- gallery ----------
+const grid = document.getElementById("grid");
+const countEl = document.getElementById("count");
+const emptyEl = document.getElementById("empty");
+const dlallWrap = document.getElementById("dlall-wrap");
+const dlallBtn = document.getElementById("dlall");
+if (dlallBtn) dlallBtn.addEventListener("click", downloadAll);
+if (HOST){ const hn=document.getElementById("hostnote"); if(hn) hn.style.display="block"; }
+
+async function loadGallery(){
+  let rows = [];
+  try {
+    if (LIVE){
+      const { data, error } = await sb.from("album_photos").select("*").order("created_at",{ascending:false});
+      if (error) throw error; rows = data || [];
+    } else { rows = demo; }
+  } catch (e){ console.error(e); countEl.textContent = "Couldn't load the album."; return; }
+
+  countEl.textContent = rows.length ? `${rows.length} photo${rows.length>1?"s":""} shared` : "";
+  emptyEl.style.display = rows.length ? "none" : "block";
+  PHOTOS = rows;
+  dlallWrap.style.display = rows.length ? "block" : "none";
+  grid.innerHTML = rows.map((r,i) => {
+    const cap = (r.uploader || r.caption)
+      ? `<div class="cap">${r.uploader?`<div class="who">${esc(r.uploader)}</div>`:""}${r.caption?`<div class="note">${esc(r.caption)}</div>`:""}</div>` : "";
+    const actions = `<div class="tile-actions"><button class="iconbtn dl" title="Save photo">↓</button>${HOST?`<button class="iconbtn del" title="Delete photo">✕</button>`:""}</div>`;
+    return `<div class="tile" data-i="${i}">${actions}<img loading="lazy" src="${r.url}" alt="">${cap}</div>`;
+  }).join("");
+  grid.querySelectorAll(".tile").forEach(t => {
+    const i = +t.dataset.i;
+    t.addEventListener("click", ev => { if (ev.target.closest(".tile-actions")) return; openLb(i); });
+    const dl = t.querySelector(".dl"); if (dl) dl.addEventListener("click", ev => { ev.stopPropagation(); dlPhoto(PHOTOS[i].url); });
+    const del = t.querySelector(".del"); if (del) del.addEventListener("click", ev => { ev.stopPropagation(); delPhoto(i); });
+  });
+}
+
+function esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// ---------- lightbox ----------
+const lb = document.getElementById("lb"), lbimg = document.getElementById("lbimg"), lbcap = document.getElementById("lbcap");
+const lbbar = document.getElementById("lbbar");
+function capOf(r){ return (r.uploader?r.uploader+(r.caption?" — ":""):"")+(r.caption||""); }
+function openLb(i){ const r = PHOTOS[i]; lbimg.src = r.url; lbcap.textContent = capOf(r); buildLbBar(r,i); lb.classList.add("open"); }
+function buildLbBar(r,i){
+  lbbar.innerHTML = "";
+  const dl = document.createElement("button"); dl.className="iconbtn"; dl.title="Save photo"; dl.textContent="↓";
+  dl.onclick = ev => { ev.stopPropagation(); dlPhoto(r.url); }; lbbar.appendChild(dl);
+  if (HOST){ const x=document.createElement("button"); x.className="iconbtn del"; x.title="Delete photo"; x.textContent="✕";
+    x.onclick = ev => { ev.stopPropagation(); lb.classList.remove("open"); delPhoto(i); }; lbbar.appendChild(x); }
+}
+lb.addEventListener("click", ev => { if (ev.target.closest(".lb-bar")) return; lb.classList.remove("open"); });
+
+async function dlPhoto(url, name){
+  name = name || (url.split("/").pop() || "photo.jpg");
+  try{
+    const res = await fetch(url, {mode:"cors"}); const blob = await res.blob();
+    const file = new File([blob], name, {type: blob.type||"image/jpeg"});
+    if (navigator.canShare && navigator.canShare({files:[file]})){
+      try{ await navigator.share({files:[file]}); return; }
+      catch(e){ if (e && e.name==="AbortError") return; }
+    }
+    const a = document.createElement("a"); const u = URL.createObjectURL(blob);
+    a.href=u; a.download=name; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(u);
+  }catch(e){ window.open(url,"_blank"); }
+}
+async function delPhoto(i){
+  const r = PHOTOS[i]; if (!r) return;
+  if (!confirm("Delete this photo for everyone? This can’t be undone.")) return;
+  try{
+    if (LIVE){ if (r.path) await sb.storage.from(BUCKET).remove([r.path]); const { error } = await sb.from("album_photos").delete().eq("id", r.id); if (error) throw error; }
+    else { demo.splice(i,1); }
+    loadGallery();
+  }catch(e){ alert("Couldn't delete: " + (e.message||e)); }
+}
+async function downloadAll(){
+  if (!PHOTOS.length) return;
+  const btn = document.getElementById("dlall"); const orig = btn.textContent; btn.disabled = true;
+  try{
+    const zip = new JSZip();
+    for (let i=0;i<PHOTOS.length;i++){
+      btn.textContent = "Zipping "+(i+1)+"/"+PHOTOS.length+"…";
+      try{ const res = await fetch(PHOTOS[i].url,{mode:"cors"}); const blob = await res.blob();
+        const who = PHOTOS[i].uploader ? PHOTOS[i].uploader.replace(/[^a-z0-9]+/gi,"_")+"-" : "";
+        zip.file(String(i+1).padStart(3,"0")+"-"+who+"photo.jpg", blob);
+      }catch(e){ console.warn("skip",PHOTOS[i].url,e); }
+    }
+    btn.textContent = "Building zip…";
+    const out = await zip.generateAsync({type:"blob"});
+    const a = document.createElement("a"); const u = URL.createObjectURL(out);
+    a.href=u; a.download="wedding-album.zip"; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(u);
+  }catch(e){ alert("Couldn't build the download: " + (e.message||e)); }
+  btn.textContent = orig; btn.disabled = false;
+}
+loadGallery();
+</script>
+
+<!--
+  =================  album-setup.sql  =================
+  After creating the PUBLIC bucket named  wedding-album , run this:
+
+  -- 1) table that lists the photos
+  create table public.album_photos (
+    id uuid primary key default gen_random_uuid(),
+    url text not null,
+    path text not null,
+    uploader text,
+    caption text,
+    created_at timestamptz not null default now()
+  );
+  alter table public.album_photos enable row level security;
+  create policy "anyone can add a photo"
+    on public.album_photos for insert to anon with check (true);
+  create policy "anyone can view photos"
+    on public.album_photos for select to anon using (true);
+
+  -- 2) let anyone upload into / read the storage bucket
+  create policy "anyone can upload to album"
+    on storage.objects for insert to anon
+    with check (bucket_id = 'wedding-album');
+  create policy "anyone can view album files"
+    on storage.objects for select to anon
+    using (bucket_id = 'wedding-album');
+  ====================================================
+-->
+</body>
+</html>
